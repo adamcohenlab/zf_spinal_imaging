@@ -461,15 +461,19 @@ end
 
 hcSpks = [];
 spksAll = {};
+vnrBurstMean = [];
 for k = 1:length(data)
     spksSc = [];
+    vnrTmp = [];
     idx = 1;
     %trls = k, each trial separate, trls = find([data..., all trials of
     %cell combined
     for trls = k%find([data.cellId]==data(k).cellId)
         ba = data(trls).burstImg-499;
+        bv = data(trls).burstVNR;
         noBurst = ba<1 | ba>size(tr,1);
         ba(noBurst) = [];
+        bv(noBurst) = [];
         instFreq = data(trls).instFreq;
         instFreq(noBurst) = [];
         tmpSpk = {};
@@ -481,6 +485,8 @@ for k = 1:length(data)
                 tmpSpk{n} = (spks-ba(n))/(ba(n+1)-ba(n));
                 spksSc = cat(1, spksSc, (spks-ba(n))/(ba(n+1)-ba(n)));
                 idx = idx + 1;
+                tmpBurst = stdVAll{data(trls).stdV}(bv(n):bv(n+1));
+                vnrTmp = cat(1, vnrTmp, interp1(1/length(tmpBurst):1/length(tmpBurst):1, tmpBurst, 1/100:1/100:1));
             end
         end
     end
@@ -488,22 +494,28 @@ for k = 1:length(data)
     hcSpks(:,k) = histcounts(spksSc, linspace(0,1,21))';
     hcSpks(:,k) = hcSpks(:,k)/idx;
     hcSpks(:,k) = hcSpks(:,k)./(1/20);
+    vnrBurstMean(:,k) = mean(vnrTmp,1);
 end
 
+logSR = (boutSpikeRate-interboutSpikeRate)./(boutSpikeRate+interboutSpikeRate);
+logSR(isnan(logSR)) = 0;
+
+
+sel = v3(ismember(v3, find(logSR>0)));
 figure
 tiledlayout(2,1)
 nexttile
 hold on
 xa = linspace(0,1,20);
-av = mean(hcSpks(:,v3),2);
-sem = std(hcSpks(:,v3),[],2)./sqrt(size(hcSpks(:,v3),2));
+av = mean(hcSpks(:,sel),2);
+sem = std(hcSpks(:,sel),[],2)./sqrt(size(hcSpks(:,sel),2));
 patch([xa fliplr(xa)], [av+sem; flipud(av-sem)]', 'k', 'EdgeColor', 'none', 'FaceAlpha', 0.5)
 plot(xa,av, 'k', 'Linewidth', 2)
 ylim([0 0.6])
 ylabel('mean spike probability')
 xlabel('burst phase')
 nexttile
-plot(mean(avVNRburst,2), 'Color', [0 0.4 1], 'LineWidth', 2)
+plot(mean(vnrBurstMean(:,sel),2), 'Color', [0 0.4 1], 'LineWidth', 2)
 
 
 % Fig2B
@@ -534,9 +546,6 @@ hold on
 
 
 nonOsc = ids(amp<.5);
-
-logSR = (boutSpikeRate-interboutSpikeRate)./(boutSpikeRate+interboutSpikeRate);
-logSR(isnan(logSR)) = 0;
 
 yzPos = cat(1, data(nonOsc).yzproj);
 xPos = cat(1, data(nonOsc).xyzpos);
